@@ -1,0 +1,711 @@
+# CNS Creator OS — Build Log
+This file tracks what was done in each build session.
+
+---
+
+## Day 1 — 2026-09-03 — Phase 1: Foundation
+
+### Project scaffold
+- Initialized Next.js 14+ App Router project with TypeScript and Tailwind CSS
+- Installed dependencies: @supabase/supabase-js, @supabase/ssr, class-variance-authority, clsx, tailwind-merge, lucide-react
+- Installed radix-ui primitives (select, dialog, dropdown-menu, checkbox, switch, separator, avatar, label, tooltip, scroll-area, popover, accordion, tabs, alert-dialog, progress, slot, toast)
+- Configured TypeScript path alias `@/*` → `./`
+
+### Supabase schema
+- Created `supabase/migrations/20260903000000_init_schema.sql` with all 14 tables:
+  creators, storefronts, landing_pages, products, courses, modules, lessons, customers, orders, subscribers, lesson_progress, ai_conversations, ai_messages, ai_assets, analytics_events
+- RLS policies for every table scoped to `auth.uid()` via creator_id
+- Customer-portal policies so logged-in customers can read only their own orders/progress
+- Public read policies for published storefronts and landing pages
+- Updated_at triggers on all creator-owned tables
+- Check constraints on type enums (products, courses, landing_pages, customers, orders, ai_assets, analytics_events)
+
+### Supabase client/server setup
+- `lib/supabase/client.ts` — browser client singleton
+- `lib/supabase/server.ts` — server-side client with cookie handling
+- `types/database.ts` — TypeScript types for all tables
+
+### Auth flow
+- `app/login/page.tsx` — email/password login with Supabase Auth
+- `app/signup/page.tsx` — email/password signup
+- `app/dashboard/layout.tsx` — client-side session check, redirects to /login if not authenticated, sign-out button
+
+### Brand Kit
+- `app/dashboard/brand-kit/page.tsx` — form to edit brand_name, handle, tone_of_voice, target_audience, preferred_cta, logo_url, brand_colors (jsonb), fonts (jsonb)
+- Upserts to `creators` table on `user_id` conflict
+
+### shadcn/ui components
+- Created `components/ui/` with: button, input, label, badge, separator, switch, checkbox, textarea, avatar, progress, select, dialog, dropdown-menu, table, scroll-area, sheet, popover, tooltip, accordion, tabs, alert, toast (provider + component)
+- `components/ui/index.ts` — barrel export
+- `lib/utils.ts` — cn() utility + hexToRgb helper
+
+### Layout
+- `app/layout.tsx` — root layout with Geist fonts
+- `app/page.tsx` — landing page with sign-in/get-started CTAs
+- `app/globals.css` — Tailwind v4 base styles
+
+### Environment
+- `.env.example` — placeholder for NEXT_PUBLIC_SUPABASE_*, SUPABASE_SERVICE_ROLE_KEY, ANTHROPIC_API_KEY, Stripe keys
+- `.gitignore` — excludes .env files
+
+### changes.txt
+- Created this file
+
+## Day 1 — 2026-09-03 — Phase 1: Foundation ✅ COMPLETE
+
+### Project scaffold
+- Initialized Next.js 14+ App Router project with TypeScript and Tailwind CSS
+- Installed dependencies: @supabase/supabase-js, @supabase/ssr, class-variance-authority, clsx, tailwind-merge, lucide-react
+- Installed radix-ui primitives (select, dialog, dropdown-menu, checkbox, switch, separator, avatar, label, tooltip, scroll-area, popover, accordion, tabs, alert-dialog, progress, slot, toast)
+- Configured TypeScript path alias `@/*` → `./`
+
+### Supabase schema
+- Created `supabase/migrations/20260903000000_init_schema.sql` with all 14 tables:
+  creators, storefronts, landing_pages, products, courses, modules, lessons, customers, orders, subscribers, lesson_progress, ai_conversations, ai_messages, ai_assets, analytics_events
+- RLS policies for every table scoped to `auth.uid()` via creator_id
+- Customer-portal policies so logged-in customers can read only their own orders/progress
+- Public read policies for published storefronts and landing pages
+- Updated_at triggers on all creator-owned tables
+- Check constraints on type enums (products, courses, landing_pages, customers, orders, ai_assets, analytics_events)
+
+### Supabase client/server setup
+- `lib/supabase/client.ts` — browser client (used via dynamic import to avoid build-time env errors)
+- `lib/supabase/server.ts` — server-side client with cookie handling
+- `types/database.ts` — TypeScript types for all tables
+
+### Auth flow
+- `app/login/page.tsx` — email/password login with Supabase Auth
+- `app/signup/page.tsx` — email/password signup
+- `app/dashboard/layout.tsx` — client-side session check, redirects to /login if not authenticated, sign-out button
+
+### Brand Kit
+- `app/dashboard/brand-kit/page.tsx` — form to edit brand_name, handle, tone_of_voice, target_audience, preferred_cta, logo_url, brand_colors (jsonb), fonts (jsonb)
+- Upserts to `creators` table on `user_id` conflict
+
+### shadcn/ui components
+- Created `components/ui/` with: button, input, label, badge, separator, switch, checkbox, textarea, avatar, progress, select, dialog, dropdown-menu, table, scroll-area, sheet, popover, tooltip, accordion, tabs, alert, toast (provider + component)
+- `components/ui/index.ts` — barrel export
+- `lib/utils.ts` — cn() utility + hexToRgb helper
+
+### Layout
+- `app/layout.tsx` — root layout with Geist fonts
+- `app/page.tsx` — landing page with sign-in/get-started CTAs
+- `app/globals.css` — Tailwind v4 base styles
+
+### Environment
+- `.env.example` — placeholder for NEXT_PUBLIC_SUPABASE_*, SUPABASE_SERVICE_ROLE_KEY, ANTHROPIC_API_KEY, Stripe keys
+- `.gitignore` — excludes .env files
+
+### Build verification
+- `npm run build` passes — all 6 routes compile cleanly (/, /login, /signup, /dashboard, /dashboard/brand-kit, /_not-found)
+- TypeScript strict mode passes
+- Supabase client is dynamically imported inside useEffect/event handlers to avoid prerender errors
+
+### Phase 1 complete. Next: Phase 2 — Storefront + Landing Pages (static builders first, no AI yet)
+---
+
+## Day 2 — 2026-09-04 — Phase 2: Storefront + Landing Pages
+
+### Database (migration file — apply to live project, see README)
+- `supabase/migrations/20260904000000_phase2_public_profiles.sql`:
+  - `public_creator_profiles` view (definer rights) exposing only `id`, `handle`, `brand_name`, `logo_url` from the RLS-private `creators` table — this unblocks public `/c/[handle]` and `/lp/[handle]/[slug]`. `id` is included so public pages can resolve handle → creator_id (creator_id is already visible on published rows).
+  - Drift guard: adds `unique (creator_id, slug)` on `landing_pages` only if a matching unique constraint isn't already present live.
+  - Public email-capture policy on `subscribers` (insert only, gated to creators who currently have a published storefront or landing page).
+
+### Shared block/section model — `types/blocks.ts`
+- Documented jsonb contract that the AI Workspace will generate against in Phase 4/5:
+  - `storefronts.sections` → `StorefrontSections`: 10 canonical sections keyed by name (hero, about, products, courses, testimonials, faq, email_signup, social_links, contact, footer), each with `enabled` + typed content. Ordering is fixed by `STOREFRONT_SECTION_ORDER`, never jsonb key order.
+  - `landing_pages.content` → `{ blocks: Block[] }` with typed blocks: heading, text, image, cta_button, testimonial, faq, signup_form, spacer.
+- Tolerant normalizers (`normalizeStorefrontSections`, `normalizeLandingContent`, `normalizeBlock`) so partial/legacy/AI-shaped jsonb never crashes renderers.
+- Per-type landing page starter layouts (`defaultLandingBlocks`), slugify + slug validation, brand-color helper.
+
+### Storefront Builder — `/dashboard/storefront`
+- Section rail (show/hide each of the 10 sections) → editor panel → live preview that shares the exact public renderer (`components/storefront/StorefrontRenderer.tsx`), so what you edit is what goes live.
+- Dirty-state tracking, Save, Published toggle, Live/Draft badge, “View live” link to `/c/{handle}`.
+- Single-row-per-creator upsert on `creator_id`. Shows a Brand Kit prompt if the creator profile doesn't exist yet.
+- Products/Courses sections set heading + intro now; real product/course cards wire in during Phase 3.
+
+### Landing Pages — `/dashboard/landing-pages` + `/dashboard/landing-pages/[id]`
+- List view: title, type badge, Live/Draft, slug + public URL, updated date; create dialog (title, auto-slug with friendly duplicate/format validation, type → starter blocks); delete with confirmation.
+- Editor: page settings (title, slug with friendly per-creator uniqueness errors, published toggle), ordered block list (expand/collapse, move up/down, delete, add-block grid), live preview via shared `components/landing/LpRenderer.tsx`.
+- Friendly handling of the `unique(creator_id, slug)` constraint (pre-check + 23505 → readable message).
+
+### Public routes
+- `/c/[handle]` (server, force-dynamic): 404 unless handle exists + storefront published; renders StorefrontRenderer with public profile branding.
+- `/lp/[handle]/[slug]` (server, force-dynamic): 404 unless handle exists + page published.
+- Email capture (`components/builder/EmailCaptureForm.tsx`) writes to `subscribers` anonymously via the new RLS policy; signup forms are disabled in builder previews until published.
+
+### App shell
+- Dashboard layout rewritten: sidebar nav (Dashboard / Storefront / Landing pages / Brand kit), email + sign-out, mobile top nav.
+- `/dashboard` now an overview with tool cards.
+- `globals.css` gained the full light shadcn token set (`--primary`, `--border`, `--input`, …) so UI primitives actually render styled.
+- Lint sweep: fixed all `any`/unused/empty-interface/unescaped-entity errors introduced now or left over from Day 1 (`npm run lint` passes clean).
+
+### Verification
+- `npm run build` passes clean, TypeScript strict passes — all 11 routes compile (2 public routes server-rendered on demand).
+- Dev-server smoke test: `/`, `/login`, `/signup`, `/dashboard`, `/dashboard/storefront`, `/dashboard/landing-pages`, `/dashboard/landing-pages/[id]`, `/dashboard/brand-kit` all 200.
+- ⚠️ Not yet verified against the live Supabase project (no credentials in this checkout): apply the new migration, then manually confirm RLS allows the published-storefront/landing-page public reads and blocks edits logged-out.
+
+### Shared editing UI (builder infrastructure)
+- `components/builder/fields.tsx` — reusable editor controls (Field, TextField, TextAreaField, ToggleField, ListItemCard, AddItemButton) used by both builders.
+- `components/landing/BlockEditor.tsx` — per-block-type inline editors (heading size/align, text, image URL/alt/caption, CTA, testimonial, FAQ items, signup form, spacer slider).
+- `components/builder/EmailCaptureForm.tsx` — public email capture shared by the storefront Email Signup section and LP signup_form blocks; inserts into `subscribers` anonymously and shows a “live only” hint inside builder previews (creatorId is null there).
+- Renderers are deliberately shared between builder preview and public page (`StorefrontRenderer`, `LpRenderer`) so the editor is pixel-faithful to production.
+
+### Notes & decisions
+- **lucide-react in this version ships no brand icons** (Instagram/YouTube/… removed) — social links render as text pills with a generic link icon instead of per-platform glyphs.
+- **Typed Supabase writes**: the hand-written `types/database.ts` lacks the `Relationships` keys the supabase-js generics expect, so `.insert()/.update()/.upsert()` resolve to `never`. Write calls follow the existing brand-kit convention: a targeted `as any` on the builder with an explanatory comment + eslint-disable. Selects stay fully typed. (Fix later via generated types from the live project.)
+- **Next 16**: dynamic-route `params` are async Promises (`await params`); public data routes use `export const dynamic = "force-dynamic"`.
+- Products/Courses storefront sections intentionally hold heading + intro text only — real product/course cards arrive with Phase 3 CRUD; the section jsonb is already shaped for it.
+- Local `supabase/migrations/20260903000000_init_schema.sql` predates hardening applied directly to the live project (is_own_* helpers etc.) — migration above is written to be safe against either state; recommend pulling live schema into local migrations when CLI access is available.
+
+### Files added / changed this session
+New files:
+- `supabase/migrations/20260904000000_phase2_public_profiles.sql`
+- `types/blocks.ts`
+- `components/builder/fields.tsx`, `components/builder/EmailCaptureForm.tsx`
+- `components/storefront/StorefrontRenderer.tsx`, `components/storefront/SectionEditorPanel.tsx`
+- `components/landing/LpRenderer.tsx`, `components/landing/BlockEditor.tsx`
+- `app/c/[handle]/page.tsx`, `app/lp/[handle]/[slug]/page.tsx`
+- `app/dashboard/storefront/page.tsx`, `app/dashboard/landing-pages/page.tsx`, `app/dashboard/landing-pages/[id]/page.tsx`
+
+Modified files:
+- `app/dashboard/layout.tsx` (sidebar + session guard rewrite), `app/dashboard/page.tsx` (overview cards)
+- `app/globals.css` (full light shadcn token set; removed OS dark auto-switch)
+- `README.md` (project setup, migration apply, Phase 2 manual verification checklist, jsonb contract)
+- Day-1 lint fixes in: `app/page.tsx`, `app/login/page.tsx`, `app/signup/page.tsx`, `app/dashboard/brand-kit/page.tsx`, `components/ui/input.tsx`, `components/ui/textarea.tsx`, `components/ui/use-toast.tsx`, `components/ui/dropdown-menu.tsx` (unused imports, `any` → typed catches/casts, empty interfaces, unescaped entity)
+- `changes.txt` (this entry)
+
+### Phase 2 status: implementation complete; DB apply + live verification pending (env credentials needed). Next: Phase 3 — Products + Courses CRUD.
+
+---
+
+## Day 3 — 2026-09-04/05 — Phase 3: Products + Courses CRUD, storefront save fix
+
+### Storefront save fix (why "save doesn't work")
+- Root cause: the storefront builder saved via `upsert(..., { onConflict: "creator_id" })`, but the base schema has **no unique constraint on `storefronts.creator_id`** — Postgres rejects that with "no unique or exclusion constraint matching the ON CONFLICT specification". (Live diagnostics confirmed the project's schema drifted from local files, so the live state couldn't be trusted; the client no longer depends on either state.)
+- Fix in `app/dashboard/storefront/page.tsx`: save now branches on the already-loaded row id — update by primary key when a storefront row exists, otherwise insert and keep the returned id. No ON CONFLICT anywhere. (Brand Kit's `onConflict: "user_id"` is fine — `creators.user_id` is unique.)
+- Error handling improved: the save error text is shown in full (no truncation) and also logged to the console, so any future RLS/DB error is visible and paste-able. Save button is enabled for a never-saved storefront even before edits.
+
+### Live diagnostics (no credentials were available for these earlier)
+- `.env` now exists in the checkout, so the live project was probed (read-only + scratch rows, all cleaned up):
+  - Service-role reads do **not** bypass RLS on this project: `creators` selects return no rows (its policy is a simple `auth.uid() = user_id` filter, and the service role has no auth user — table emptiness could NOT be confirmed), while `storefronts`/`landing_pages`/`products`/`courses`/`subscribers` selects fail with "permission denied for function is_own_creator". The live project is hardened with `is_own_*` helper functions that the service role lacks EXECUTE on.
+  - **Anonymous reads on public pages are broken live**: all policies on a table are evaluated for the querying role, and the helper-based creator policies aren't granted to `anon` — so even "published readable by anyone" rows return `401 permission denied for function is_own_creator` for anon on `storefronts`/`landing_pages`/`products`/`courses`.
+  - **Creator writes fail the same way for authenticated users** — confirmed by the reported storefront save error "permission denied for function is_own_creator": the INSERT/UPDATE/DELETE policies call `is_own_creator` and the `authenticated` role lacks EXECUTE on it. Reading an empty storefront slips through (no rows → policy function never evaluated), which is why the failure only surfaced on Save.
+  - `public_creator_profiles` (Phase 2 migration) does not exist yet on the live project.
+  - Auth signups were rate-limited and admin user creation refused during the session, so a full live RLS write test couldn't be run. **Live verification of the fix is still pending:** apply the migrations, then save the storefront and report any remaining error (now shown in full).
+
+### Phase 3 — Products + Courses CRUD
+- `supabase/migrations/20260905000000_phase3_catalog.sql`:
+  - Public read for published `products` and `courses` (mirrors the published-storefront read policy), so the public storefront can list them anonymously.
+  - Drift-guarded `unique (creator_id)` on `storefronts` (one storefront per creator) — the app no longer relies on it, but it enforces the invariant.
+  - **RLS drift repair (reads AND writes)**: drops and recreates ALL policies on `storefronts`/`landing_pages`/`products`/`courses` with explicit `TO` roles and no helper-function dependency — `TO anon, authenticated` SELECT on published rows, plus full owner CRUD `TO authenticated` via a plain `creators.id = <table>.creator_id AND creators.user_id = auth.uid()` subquery (subject to creators' own RLS, so it can't leak other rows). Fixes the anon public-read 401s AND the authenticated save/write "permission denied for function is_own_creator" errors. Idempotent (drop-all + recreate), so the file can simply be re-run. Tables not yet touched (modules, lessons, customers, orders, ai_*, subscribers) keep their helper-based policies until their UIs ship — revisit then or fix now if desired.
+- `components/catalog/` — shared catalog UI so products and courses stay consistent:
+  - `types.ts` — kinds, product type enum + labels, list-row shape.
+  - `CatalogList.tsx` — list/create/delete page for both (type select only for products), Brand Kit prompt, confirm dialogs.
+  - `CatalogEditor.tsx` — detail editor for both (title, description, USD price with live preview, cover image URL + preview, published toggle, delete confirm). Products also get type + private delivery-file URL.
+- Routes: `/dashboard/products` + `/dashboard/products/[id]`, `/dashboard/courses` + `/dashboard/courses/[id]`.
+- Dashboard: sidebar + overview cards now include Products and Courses.
+- `lib/utils.ts`: `formatPrice`, `dollarsToCents`, `centsToDollars` helpers.
+
+### Storefront now lists real catalog items
+- `StorefrontRenderer` gained optional `products`/`courses` arrays and renders them as price/cover/description cards inside the Products / Courses sections.
+- Builder preview fetches the creator's own published products/courses on load; the public `/c/[handle]` route fetches published rows server-side. Both share the same renderer, so preview === live.
+- Products/Courses section editor copy updated ("published X appear here automatically as cards"). Until the Phase 3 migration is applied, anonymous reads return no rows and the sections simply stay text-only.
+
+### Verification
+- `npm run build` clean (strict TS) — now 15 routes; `npm run lint` clean.
+- Dev-server smoke: `/dashboard/products`, `/dashboard/products/[id]`, `/dashboard/courses`, `/dashboard/courses/[id]`, storefront and landing pages all 200.
+- ⚠️ Pending (needs you): apply both pending migrations (`20260904000000_phase2_public_profiles.sql`, `20260905000000_phase3_catalog.sql`) — the Phase 3 file now also repairs the live anon-read RLS drift — then re-test the storefront save and confirm published products/courses appear on `/c/{handle}` logged out.
+
+### Phase 3 status: implementation complete; live DB apply + verification pending. Next: lessons/modules for courses, or Phase 4 (AI Workspace v1).
+
+---
+
+## Day 3 addendum — Craft.js drag-and-drop landing page editor
+
+### What changed
+- Installed `@craftjs/core@0.2.12` (peer range officially includes React 19 — verified before installing). Skipped `@craftjs/layers` (pulls in styled-components) and built a lightweight layers/toolbox panel instead.
+- The landing page editor (`/dashboard/landing-pages/[id]`) was rebuilt around a real Craft.js canvas. Scope decided with the user: landing pages only for now; the storefront keeps its curated 10-section builder.
+- Persistence contract unchanged: content is still saved as the documented `{ blocks: Block[] }` jsonb (types/blocks.ts). Craft.js is an editing layer only:
+  - `lib/craft.ts` — bidirectional converters: `blocksToCraftSerialized()` (seeds the editor once per page) and `craftSerializedToBlocks()` (every canvas change → canonical blocks → same save path as before).
+  - `components/landing/craft/elements.tsx` — Craft resolver elements (Container root + Heading/Text/Image/CtaButton/Testimonial/Faq/SignupForm/Spacer), each with a chrome wrapper: hover/selection outline, drag handle (≡), up/down arrows, delete. Canvas visuals reuse the exact same view components as the public LpRenderer (`HeadingView`, `TextView`, … exported from LpRenderer), so what you edit still matches what goes live.
+  - `components/landing/craft/CraftPageEditor.tsx` — Editor with onNodesChange → blocks sync, Add-block palette, Page blocks list (layers), and a property panel that reuses `BlockEditor` and writes back via `actions.setProp`.
+- The page route keeps the header (title/type badges, Save, publish, view-live) and adds a slim Page-settings rail; the canvas replaces the old static preview column.
+
+### Notes & decisions
+- React 19 is supported by @craftjs/core 0.2.x; verified from npm peer ranges before installing.
+- SSR-safe: the Editor mounts only after the page’s data is fetched client-side (the route pre-renders the loading state only). Craft's Frame seeds its tree once (internally ref-guarded), and the editor is keyed per page id (`key={id}`) so state resets between pages.
+- Empty/blank blocks still show a chrome bar in the canvas (dashed label) so they are always clickable/removable.
+
+### Verification
+- `npm run lint` clean; `npm run build` clean (strict TS) — all 15 routes compile.
+- Dev-server smoke: `/dashboard/landing-pages/[id]` renders 200 with no SSR/module-eval errors from craftjs.
+- ⚠️ Interactive drag/drop, click-to-edit, and palette drops still need a quick manual pass in the browser with a signed-in session (auth isn’t available in this sandbox).
+
+---
+
+## Day 3 addendum — Storefront VSL section + media testimonials
+
+### What changed
+- New **Video (VSL)** storefront section (`vsl` in `StorefrontSections`), rendered right below
+  the hero in `STOREFRONT_SECTION_ORDER`. Fields: heading, subheadline, video link,
+  thumbnail URL, optional button below the video. Defaults to disabled, so existing rows are
+  unaffected until a creator turns it on.
+- Testimonials can now show media: each testimonial item gained optional `image_url`
+  ("student result" screenshot/photo) and `video_url` fields, rendered above the quote.
+- `lib/media.ts` (new) — converts paste-friendly share links to iframe embed URLs:
+  Loom (`loom.com/share/<id>` → `loom.com/embed/<id>`), YouTube (watch / youtu.be / shorts /
+  embed → youtube-nocookie embed), Vimeo, plus passthrough for any existing `/embed/` URL.
+  `toEmbedUrl()` returns null for unrecognized links so callers can fall back gracefully.
+- `components/builder/VideoEmbed.tsx` (new) — shared click-to-play player: shows the optional
+  poster thumbnail with a play button and only mounts the iframe on click (keeps public pages
+  fast). No thumbnail → dark player placeholder. Unrecognized link → "Watch video" outbound
+  button. Used by BOTH the VSL section and media testimonials, in the builder preview and on
+  the public `/c/[handle]` page (single shared renderer).
+- Editor (`SectionEditorPanel`): VSL case with a **live link-validity hint** (green "Link
+  recognized — plays as embedded video" vs amber warning) via `toEmbedUrl`, plus per-testimonial
+  Result image / Result video URL fields.
+
+### Notes & decisions
+- Old jsonb is safe: `normalizeStorefrontSections` falls back to a disabled default vsl for rows
+  saved before this change, and testimonial media keys are optional + stripped when empty.
+- Storefront order is now: hero → vsl → about → products → courses → testimonials → faq →
+  email_signup → social_links → contact → footer (vsl inserted, everything else unchanged).
+- Landing-page testimonials (LP blocks / Craft canvas) intentionally untouched — this was
+  scoped to the storefront builder.
+
+### Verification
+- `npm run lint` clean; `npm run build` clean (strict TS) — all 15 routes compile.
+- URL parser unit-checked against Loom share, Loom no-www, youtube watch/shorts/youtu.be,
+  Vimeo, pre-embed, and junk inputs (all convert or null as designed).
+- ⚠️ Visual pass (thumbnail poster, click-to-play, testimonial layout) needs a browser check
+  with a signed-in session.
+
+---
+
+## Day 4 — Phase 4: uploads + Kajabi-style course builder
+
+### What changed
+
+**Uploads everywhere (Supabase Storage)**
+- New `components/builder/UploadField.tsx` — a shared "Upload file (primary) / paste URL (fallback)" field with previews (image thumbnail, 16:9 video), clear button, inline errors, and a busy state.
+- New `lib/storage.ts` — `uploadObject()` (uploads under `<userId>/<category>/…`, returns public URL for public buckets, bare path for private ones), `sanitizeFileName()`, `parseLessonVideo()`, and `signedObjectUrl()` with caching for private video previews.
+- **VSL section**: thumbnail is now an upload (uploads bucket) — no more URL-only. Optional; the dark player still shows without one.
+- **Testimonials**: both media fields are now uploads — "Result image" (image upload, per request) and "Result video" (video upload to the public uploads bucket; Loom/YouTube links still pasteable). Media renders above the quote on both the builder preview and the public `/c/[handle]` page; testimonial **videos render 9:16 portrait** (centered phone-frame clip), per request.
+- **Course**: thumbnail (cover) is an upload too, shown as a mini poster in the builder header.
+- Direct-video playback added to `VideoEmbed` (mp4/webm/mov URLs play in a plain `<video>`, not an outbound link), and the player fills its frame with `object-cover` so there are no letterbox bars — editor preview matches the public page. Aspect is configurable per use: **16:9** for VSL + lesson videos, **9:16 portrait** for testimonial videos.
+
+**Phase 4 migration — `20260906000000_phase4_courses_storage.sql`**
+- **RLS repair for `modules` + `lessons`**: drop-all + recreate owner CRUD with explicit `TO authenticated` and plain subqueries (no `is_own_*` helper dependency), mirroring the Phase 3 repair. **Apply after Phase 3** (the subqueries read `courses`, whose RLS must already be repaired).
+- **Storage provisioning**: the live project has **zero storage buckets**, so every upload would fail. The migration creates/aligns `uploads` (public read, owner write, 250 MB objects), `avatars` (public), `course-videos` (private, 2 GB video limit), `product-files` (private), plus the `storage.objects` policies the browser client needs (owner folder convention: first path segment = auth.uid()). All idempotent (guarded creates + on-conflict upserts).
+
+**Kajabi-style course builder** — `/dashboard/courses/[id]` now uses `components/course/CourseBuilder.tsx` (replaces the generic catalog editor for courses):
+- **Outline tab**: modules/lessons tree like Kajabi — grip-handle drag-to-reorder (handle-only so text inputs still type), chevron expand/collapse, inline module renaming (debounced), per-row move arrows as fallback, delete, lesson counts, ghost "+ Add module" / "+ Add lesson" rows, drop targets with highlight, autosave with a green "Saved" flash and inline errors.
+- **Settings tab**: published toggle, title, description, price, thumbnail upload.
+- **Lesson editor** (opens beside the outline): title + "Notes for students" (stored in `lessons.content` jsonb), and a **video upload to the private `course-videos` bucket** (`courses/<courseId>/<lessonId>/…` path stored in `video_url`; external mp4 links pasteable). Preview resolves a cached signed URL — owner-only, exactly what enrolled students will see later.
+- Header shows the course thumbnail + module/lesson counts + Live/Draft badge.
+
+### Live-project findings (probed via REST)
+- `modules`, `lessons`, `courses`, `storefronts` anon/authenticated reads still fail with `permission denied for function is_own_*` — the Phase 2/3/4 migrations are **not yet applied**; curriculum and storage writes will fail until they are.
+- Storage bucket list is empty (`[]`) — buckets must come from the Phase 4 migration.
+
+### Verification
+- `npm run lint` clean; `npm run build` clean (strict TS) — all 15 routes compile.
+- ⚠️ Needs a signed-in browser pass: upload a VSL thumbnail, testimonial image/video, course thumbnail, and a lesson video; confirm drag-reorder + autosave; confirm 16:9 playback. All of this requires applying migrations 2 → 3 → 4 first.
+
+---
+
+## Day 4 addendum — AI Workspace v1 (read-only, Phase 4)
+
+### What changed
+- **`/dashboard/ai`** — an AI workspace (ChatGPT-style) where creators chat with a copilot that
+  has READ access to their real workspace: brand kit (voice, audience, CTA), storefront enabled
+  sections + hero copy, landing pages, products, courses, and subscriber count. Conversation
+  sidebar (new/select/delete, two-step confirm), empty-state suggestion chips, Enter-to-send,
+  Stop button, streaming replies. Nav item (Sparkles) + dashboard overview card added.
+- **`app/api/ai/chat/route.ts`** (POST, server-only) — verifies the signed-in creator (403
+  without a Brand Kit profile), creates or validates the `ai_conversations` row, inserts the
+  user message, loads a trimmed read-only context snapshot, calls Anthropic
+  (`claude-sonnet-4-5`, SDK installed: `@anthropic-ai/sdk`) and **streams** the reply as plain
+  text with an `X-Conversation-Id` response header. The assistant message is persisted
+  server-side when the stream completes. History is capped at the last 30 messages. The
+  ANTHROPIC_API_KEY stays server-side; the workspace is explicitly read-only — the system
+  prompt tells the model it cannot make changes yet (Phase 5).
+- **Migration `20260907000000_ai_workspace.sql`** — drop-all + recreate policies on
+  `ai_conversations` + `ai_messages` with explicit `TO authenticated` and plain subqueries
+  (no `is_own_*` helper dependency), matching the Phase 3/4 repairs; otherwise the workspace's
+  conversation CRUD fails on the live project with `permission denied for function
+  is_own_conversation`. **Apply after the courses/storage migration.**
+
+### Notes & decisions
+- Streaming means responses feel instant; if the client disconnects, the server still finishes
+  the reply and saves it (next open of the conversation shows it).
+- Errors before the stream starts return JSON; the client maps `res.ok === false` to a friendly
+  message. No new UI library — replies render as plain text with preserved line breaks.
+- The context payload is trimmed (titles/statuses, hero copy, counts) to keep prompts small.
+
+### Verification
+- `npm run lint` clean; `npm run build` clean (strict TS) — 16 routes now
+  (`/dashboard/ai` static, `/api/ai/chat` dynamic).
+- Dev smoke: `/dashboard/ai` returns 200; POST `/api/ai/chat` without a session → 401
+  `{"error":"Not signed in."}`; malformed body → 400.
+- ⚠️ The full AI round-trip needs a signed-in session + the Anthropic key + the pending
+  migrations applied (2 → 3 → 4 → ai-workspace); then in the browser: send a question about
+  the storefront and watch the streamed reply.
+
+---
+
+## Day 4 addendum — Creator-first design pass
+
+### What changed
+- **Design tokens & fonts** — added `Instrument_Serif` (display serif, normal + italic) alongside
+  Geist; bumped radius, ring color to amber. New global utilities:
+  - `.font-display` — the serif for headlines.
+  - `.text-gradient` — warm amber → orange → rose gradient text.
+  - `.bg-gradient-brand` — the brand gradient (logo marks, CTAs).
+  - `.bg-grid-faint`, `.hero-glow` — subtle grid + radial color glows for hero sections.
+  - `.card-lift` — hover lift.
+  - Amber `::selection`.
+- **Landing page (`/`)** — rebuilt as a real marketing page: sticky glass nav, hero with a
+  gradient product mock (storefront builder chrome/sidebar/preview cards + Live badge), a
+  "replaces the creator stack" strip (Kajabi/Stan Store/Gumroad/ClickFunnels/Framer/Notion
+  crossed out), feature grid with gradient icon tiles, a 3-step "how it works", and a footer.
+- **Auth pages (`/login`, `/signup`)** — split-screen: dark brand panel left (hero glow, grid,
+  gradient logo, feature perks), clean form right; mobile keeps the centered card. Error
+  states are styled calls-outs; buttons use the gradient/black system.
+- **Dashboard shell** — sidebar widened to 60, gradient logo mark, "Workspace" section label,
+  amber active icon tint.
+- **Dashboard overview (`/dashboard`)** — hero banner ("Your creator command center") with a
+  "Ask the AI" CTA, a live stats strip (Storefront live/draft, Products, Courses, Landing
+  pages, Subscribers via `components/dashboard/Stats.tsx`), and a tool grid with gradient
+  icon tiles + card-lift hover.
+
+### Verification
+- `npm run lint` clean; `npm run build` clean (strict TS) — all 16 routes compile.
+- SSR smoke: `/`, `/login`, `/signup` all 200 with brand classes present. (No browser
+  screenshot possible in this sandbox — backgrounded dev servers get reaped between calls.)
+- ⚠️ Worth a visual pass in the browser: landing hero proportions, auth split-screen on
+  mobile, dashboard stats while signed in.
+
+---
+
+## Day 4 addendum — Course save + read-only lesson material (PDF / quiz)
+
+### What changed
+- **Explicit Save for course changes** — the header now shows one Save button that persists
+  everything: course details (title/description/price/cover/publish) AND any pending
+  curriculum edits (lesson title/notes/video, module renames). A live amber dot marks
+  unsaved changes; autosave still runs, and Save simply flushes whatever is pending. Tracking
+  via `pendingLessonsRef`/`pendingModulesRef` + a fresh `modulesRef` so flushes always write
+  the latest values.
+- **Read-only lesson PDFs** (`content.material.kind = "pdf"`) — a "Lesson material" section in
+  each lesson with None / PDF / Quiz tabs. PDFs are **upload-only** (no paste-a-URL fallback
+  — `UploadField` gained an `allowPaste` flag) and go to the NEW private `course-files`
+  bucket (100 MB limit, PDF-only MIME), previewing inline in a toolbar-less iframe
+  (`#toolbar=0&view=FitH`) labeled **"Read-only preview / Downloads disabled"** — there is no
+  download link anywhere.
+- **Quizzes** (`content.material.kind = "quiz"`) — a per-lesson quiz builder: add/remove
+  questions, edit options (2–6), mark the correct answer per question, with a warning when any
+  question is missing a correct answer. Stored in `lessons.content` jsonb (no schema change).
+- **New types** — `types/course.ts` (`QuizQuestion`, `LessonMaterial`, `makeQuizQuestion`,
+  `normalizeLessonMaterial`) documenting the exact jsonb contract the AI phase will read.
+- **Migration `20260908000000_course_files.sql`** — creates the private `course-files`
+  bucket + owner storage policies (guarded, idempotent). Apply after Phase 4.
+
+### Notes & decisions
+- PDF protection is a *read-only convenience* (viewer hides the toolbar, app offers no
+  download/print link, file lives in a private bucket) — not DRM; a signed URL can be copied
+  by a determined user. Real file-level protection would need server-side streaming + access
+  control in a later phase.
+- Quizzes are authored now; taking/submitting them lives with the student course player
+  (Phase 6/7).
+
+### Verification
+- `npm run lint` clean; `npm run build` clean (strict TS) — all 16 routes compile.
+- Dev smoke: `/dashboard/courses` and `/dashboard/courses/[id]` render 200.
+- ⚠️ Browser pass needed (after migrations): edit a lesson → Save flushes + amber dot clears;
+  upload a PDF and confirm inline read-only preview; build a quiz and confirm it saves.
+
+---
+
+## Day 5 — Phase 5 (Stripe checkout & orders) + Phase 6 (student course player & analytics)
+
+### Phase 5 — checkout & orders
+- **`/api/checkout`** — POST { kind: product|course, id, email }. Re-reads price/creator from
+  the DB with the service role (client never supplies amounts), only published items are
+  purchasable, upserts a `learners` row (email-unique), seeds a pending `orders` row, and
+  creates a Stripe Checkout Session (metadata carries kind/item/creator/learner/amount).
+  **Free items (price 0) skip Stripe**: order marked paid + enrollment + straight to /thanks.
+- **`/api/stripe/webhook`** — verifies the STRIPE_WEBHOOK_SECRET signature, marks the pending
+  order paid, enrolls the learner for courses (idempotent), inserts a `sale` analytics event.
+  Falls back to inserting the order when the pre-migration pending insert failed.
+- **Buy buttons** on public storefront catalog cards (`BuyButton`): email modal → checkout.
+  Disabled in the builder preview (checkout exists only on the live page).
+- **`/thanks`** — confirmation page; course buyers get a bookmarkable "Open your course"
+  link (`/learn?course=<id>&email=…`).
+- **`/dashboard/orders`** — creator sales table (item, buyer email, date, amount, status)
+  with revenue/paid/pending tiles; stitched client-side from orders + product/course titles
+  + learner emails.
+
+### Phase 6 — student course player + analytics
+- **`/learn`** — the student side, Skool/Kajabi-style: email gate (the checkout email is the
+  credential), curriculum rail with per-lesson completion circles, progress bar, lesson pane
+  with 16:9 video (signed URL for private course-videos, click-to-play for Loom/YT/Vimeo),
+  notes, **read-only PDF** (toolbar-less iframe, "downloads disabled" badge), and **quizzes
+  graded server-side** (`quiz-grade` action) — correct answers never reach the browser.
+  "Mark complete & continue" records progress to `lesson_progress`.
+- **`/api/course-access`** — resolve / complete / quiz-grade actions; every path re-verifies
+  the enrollment through the service role, so an email grants exactly what was purchased.
+- **Analytics** — `PageViewTracker` fires an anonymous page_view on published storefronts;
+  the email form now also records a signup event; **`/dashboard/analytics`** aggregates
+  views / signups / enrollments / sales + revenue for the last 30 days with recent activity.
+
+### Migration `20260909000000_phase5_6_commerce.sql` (apply after course_files)
+- `learners` (email-unique), `enrollments` (unique course+learner), `lesson_progress`
+  (unique learner+lesson), `quiz_attempts` — created only if missing.
+- RLS repair: orders (owner read; **service-role only writes** — anon/authenticated writes
+  revoked), analytics_events (owner read + **public insert of page_view/signup gated to
+  published storefronts**), subscribers public-insert repair mirroring the earlier phases.
+- New tables are service-role-only (no anon/authenticated grants): student access flows
+  exclusively through the server APIs.
+
+### Fixes & notes
+- **UploadField bug fix**: private-bucket uploads stored a truncated path
+  (`bucket/user/folder` — no filename), which would have broken lesson video/PDF playback.
+  Now stores the full object path, resolved to a 1-hour signed URL at view time.
+- **Stripe env**: STRIPE_SECRET_KEY / STRIPE_WEBHOOK_SECRET / NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+  are EMPTY in .env — checkout APIs return clear "not configured" errors until they're filled;
+  nothing crashes. Webhook endpoint to register: `<site>/api/stripe/webhook`
+  (event: checkout.session.completed).
+- Access-model caveat (same as PDFs): email-based access is convenience-grade, not auth.
+
+### Verification
+- `npm run lint` clean; `npm run build` green (strict TS) — **24 routes**.
+- Dev smoke: /learn, /thanks, /dashboard/orders, /dashboard/analytics → 200; /c/nobody → 404;
+  checkout/access validation → 400; unknown-email resolve → {"courses":[]}; webhook without
+  signature → 500 (not configured).
+- ⚠️ Needs live keys + migrations to verify end-to-end: a real purchase → webhook → enrollment
+  → /learn flow.
+
+---
+
+## Day 5 addendum — AI write access (tools) + Canva-style brand kit
+
+### AI workspace v2 — the copilot can now DO things
+- **`lib/ai-tools.ts`** — 7 server-side tools with Anthropic tool-use schemas:
+  `get_workspace` (full read incl. course curricula), `update_brand_kit` (name, handle,
+  voice, audience, CTA, hex colors, fonts), `update_storefront_section` (complete section
+  copy; storefront row created lazily for fresh accounts), `set_storefront_section_enabled`,
+  `upsert_product` / `upsert_course` (match by title → update, else create; courses accept a
+  full module/lesson tree with notes, video links and quizzes), and `create_landing_page`
+  (block list → new draft page with unique slug).
+- **Guardrails**: creator_id always comes from the server session (never the model); writes
+  are scoped by it; publish flags default to false (AI drafts, human publishes); no delete
+  tools exist.
+- **`/api/ai/chat`** rewritten as an agent loop (up to 6 rounds): the model streams text and
+  tool calls (input_json_delta accumulated), tools execute server-side, results feed back
+  into the conversation, then the model summarizes what changed. Streams NDJSON events
+  (text deltas + tool running/done/error with human labels). Assistant text persists as
+  before.
+- **Workspace UI**: shows live tool activity chips ("Editing your storefront — Updated the
+  hero section.") with running/done/error states, an "Open the storefront builder" review
+  link after edits, and updated empty-state/suggestions ("Build me a sales landing page…",
+  "Create a 4-module course with quizzes"). Header badge: "Can edit your workspace".
+- **Migration 5b** (appended to `20260909000000_phase5_6_commerce.sql`): creators RLS repair
+  (owner CRUD via plain `user_id = auth.uid()`) so brand-kit writes work on the live
+  project's helper-based schema. Public page reads are unaffected — the Phase 2 view is a
+  plain (security-definer) view.
+
+### Brand kit — Canva-style brand board
+- Rebuilt `/dashboard/brand-kit` as a two-pane editor: left is a **live brand board** (logo
+  or initial tile, palette strip, type specimen, voice chip, CTA button preview, public-page
+  link) that updates as you type; right holds four editor cards — Identity (name, handle,
+  logo upload), Colors (three swatch pickers with hex inputs), Fonts (five preset cards:
+  Modern/Editorial/Bold/Friendly/Classic), and Voice & audience (tone, audience, CTA).
+- No more raw JSON textareas; Save enabled only when dirty, with Saved flash.
+
+### Verification
+- `npm run lint` clean; `npm run build` green (strict TS) — 24 routes.
+- Smoke: /dashboard/ai and /dashboard/brand-kit render 200; unauthenticated chat POST →
+  401 JSON. (Live tool calls need ANTHROPIC_API_KEY set in .env — currently empty — plus the
+  migrations applied.)
+
+---
+
+## Day 5 addendum 2 — AI provider switched to OpenRouter (free models)
+
+- Replaced the Anthropic SDK with a thin **OpenRouter client** (`lib/openrouter.ts`):
+  OpenAI-compatible chat-completions, SSE streaming, and multi-tool-call assembly
+  (indexed `tool_calls` deltas accumulated across chunks). `@anthropic-ai/sdk` removed.
+- **Model**: `OPENROUTER_MODEL=openrouter/free` — OpenRouter's auto-router across the best
+  free models (all $0.00). Verified live: the routed model emits correct `upsert_product`
+  tool calls (title + price) against the new client shape. To pin a specific free model,
+  change `OPENROUTER_MODEL` in `.env` (e.g. `nvidia/nemotron-3-super-120b-a12b:free`, also
+  verified tool-capable). Free-tier tradeoff: per-minute rate limits — the UI surfaces the
+  error message verbatim if a request is throttled.
+- **Key handling**: `OPENROUTER_API_KEY` added to `.env` (OpenRouter keys are lowercase
+  `sk-or-v1-…`; the pasted key had been sentence-capitalized). Also repaired a merged-line
+  corruption in `.env` caused by a heredoc append without a leading newline (Stripe values
+  were empty already — nothing lost).
+- **`/api/ai/chat`**: same agent loop (up to 6 rounds), same 7 server-side tools, same
+  NDJSON streaming protocol (text deltas + tool running/done/error) — only the provider
+  changed. Unauthenticated requests still 401; missing key → clear 500.
+- Verified: `npm run lint` clean; build green; probe script confirmed key validity (200 on
+  /api/v1/key) and tool calling on two free models before deletion.
+
+---
+
+## Day 5 addendum 3 — /c/<handle> 404 root cause + one-paste consolidated fix
+
+### Live probe (service role)
+- `public_creator_profiles` → 404 PGRST205 (view missing: Phase 2 never applied).
+- `creators` → 200 but EMPTY (the brand-kit save never landed — pre-repair RLS blocked it).
+- `storefronts`/`products` → 401 "permission denied for function is_own_creator".
+
+### Diagnosis
+The 404 on /c/john-create is purely a DATABASE state issue: with no migrations applied,
+the public page's profile lookup has no view to query, and the creator row itself was
+never saved because the shipped helper-based RLS denies writes. No code change needed.
+
+### Fix shipped: supabase/migrations/20260909000010_consolidated_fix.sql
+One idempotent script that brings a bare project fully online in a single SQL-Editor
+paste: the public view (+ explicit grants), full drop-then-recreate RLS on all 12 app
+tables (creators, storefronts, landing_pages, products, courses, modules, lessons, orders,
+analytics_events, subscribers, ai_conversations, ai_messages — no helper dependencies),
+the four student tables (learners/enrollments/lesson_progress/quiz_attempts, service-role
+only), all five storage buckets + storage policies. Safe to re-run.
+
+### After applying
+1. Reload /c/john-create → the page 404s only if the storefront is still unpublished.
+2. Re-save the Brand Kit once (recreates the creator row), publish the storefront, then
+   the public page, email capture, uploads, AI workspace and checkout all go live.
+
+---
+
+## Day 5 addendum 4 — corrected migration runbook
+
+- The README/runbook said `supabase db push -f <file>` — wrong: `db push` has no `-f`
+  flag (the CLI prints its help and exits, as seen live). Correct usage is a linked
+  `supabase db push` (applies all files in supabase/migrations/).
+- Because the live project already has the base tables, pushing the FULL history would
+  crash on unguarded `create table` in the init migration. Fix: moved the seven legacy
+  migration files to `supabase/migrations_legacy/` so `supabase/migrations/` contains
+  exactly the one idempotent consolidated script — a plain `supabase db push` now
+  applies just that file, safely, to the existing schema.
+- Consolidated script also gained best-effort unique indexes (one storefront row per
+  creator; unique landing-page slugs per creator) — exception-guarded.
+- Runbook: `supabase login` → `supabase link --project-ref <ref>` → `supabase db push`,
+  or paste the file contents into the Supabase SQL Editor (CLI-free). Then re-save the
+  Brand Kit once and publish the storefront.
+
+---
+
+## Day 5 addendum 5 — post-push verification + privilege repair
+
+### Verified working after the user's push (live probes + rendered page)
+- /c/john-create → **200** with the product card ("10 day pregnancy planner") and course
+  card ("Dropshipping 101") server-rendered for logged-out visitors. The original 404 is
+  resolved; the creator row, published storefront, and analytics RLS are all live.
+
+### Two gaps found by the probe, fixed in 20260909000020_privilege_repair.sql
+1. **Storage buckets missing** — the consolidated script's bucket insert didn't take
+   effect on the live project (likely push-role privilege scope). Re-provisioned
+   (idempotent upsert).
+2. **Service role lost table privileges** on learners/enrollments/etc. (401 "grant
+   required privileges") — checkout/webhook/course-access would fail. The repair grants
+   service_role full DML on all public tables + sequences, gives anon/authenticated the
+   exact table grants RLS expects, keeps student tables revoked from browser roles, and
+   adds default privileges so future migrations auto-grant service_role.
+
+---
+
+## Day 5 addendum 6 — checkout 500 diagnosed (DB grants pending + Stripe keys empty)
+
+- Live repro on the user's running server: POST /api/checkout → {"error":"Could not start
+  checkout"}; the server log shows "learner upsert failed: permission denied for table
+  learners" — the 20260909000020_privilege_repair.sql migration had not been applied yet
+  (service-role probes still 401; buckets still absent).
+- Second, independent gap: STRIPE_SECRET_KEY / STRIPE_WEBHOOK_SECRET /
+  NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY are all still EMPTY in .env — paid checkout would
+  refuse even with the DB fixed.
+- Checkout route now includes the DB error `detail` in non-production responses so setup
+  gaps are visible in the browser network tab instead of a bare 500.
+- Path to green checkout: (1) apply the privilege repair (supabase db push), (2) fill the
+  three Stripe env values (test keys suffice; webhook endpoint /api/stripe/webhook, event
+  checkout.session.completed), (3) restart npm run dev.
+
+---
+
+## Day 5 addendum 7 — switched payments from Stripe to Paystack
+
+### Why
+User request — Paystack for the creator market (cards, bank transfer, USSD, mobile money).
+
+### What changed
+- **lib/paystack.ts** — server client: `initializeTransaction` (hosted payment page),
+  `verifyTransaction` (server-side source of truth), `verifyWebhookSignature`
+  (HMAC-SHA512 over the RAW body, timing-safe compare), plus the shared service-role
+  Supabase client (moved out of the deleted lib/stripe.ts).
+- **lib/fulfill.ts** — one idempotent fulfillment path (pending→paid by gateway reference,
+  course enrollment upsert, sale analytics event with reference metadata), shared by BOTH
+  the webhook and the callback verifier, with self-healing (inserts a paid order if the
+  checkout-time pending insert failed).
+- **/api/checkout** — Paystack initialize: unique reference (cns-<ts>-<rand>) stored on the
+  pending order (orders.stripe_payment_id column reused as the gateway-reference field —
+  no schema change), metadata round-trips (kind/item/creator/learner/amount), callback_url
+  → /thanks?...&reference=…. Free items still skip the gateway entirely.
+- **/api/paystack/webhook** — signature check → charge.success → re-verify via the API →
+  fulfillOrder. **/api/paystack/verify** — callback-time verification+fulfillment fallback
+  (webhooks can't reach localhost; /thanks now shows a live "Confirming your payment…"
+  chip via components/storefront/VerifyPurchase.tsx).
+- Removed: /api/stripe/webhook, lib/stripe.ts, the stripe package. course-access imports
+  the admin client from lib/paystack now; analytics dedupes buyers by gateway reference.
+- .env: stripe keys removed; PAYSTACK_SECRET_KEY / NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY /
+  PAYSTACK_CURRENCY=USD placeholders added.
+
+### Verification
+- lint clean; build green — /api/checkout, /api/paystack/webhook, /api/paystack/verify live.
+- Smoke: unsigned webhook → 401; verify without reference → 400; checkout with the DB
+  grants still pending surfaces {"detail":"permission denied for table learners"} — the
+  20260909000020_privilege_repair.sql migration is still required (and buckets absent).
+- Live payment test still needs: apply the privilege repair, fill the Paystack keys,
+  register the webhook (charge.success → <origin>/api/paystack/webhook), restart dev.
+
+---
+
+## Day 5 addendum — Buyer order dashboard + order-error fixes
+
+### Fixed (root causes of the "Could not start checkout" 500s)
+- `.env` had the **anon key** pasted in the `SUPABASE_SERVICE_ROLE_KEY` slot (JWT role claim said `anon`) — fetched the real service_role key via the logged-in Supabase CLI and wrote it in.
+- `supabase/migrations/20260909000020_privilege_repair.sql` applied via `supabase db push --yes`: service-role grants on all app tables + the 5 storage buckets with upload/signed-read policies.
+- `supabase/migrations/20260909000030_orders_learners_fk.sql` (new): `orders.customer_id` had an FK to the legacy `customers` table, so every order INSERT failed while the learner row succeeded. FK repointed to `learners` (replacing the old constraint).
+- Checkout API error surface: dev responses now include a `detail` field naming the exact DB failure.
+
+### Buyer dashboard (`/orders`)
+- **`components/orders/StudentOrders.tsx`** + **`app/orders/page.tsx`**: email-gated order history across ALL creators. Shows "Your courses" quick-open grid + full order history (status badges, amounts, item type). Remembers the email in localStorage; `?email=…` skips the gate.
+- API: `action: "orders"` on `/api/course-access` → `getStudentOrders()` in `lib/access.ts` (orders + openable courses by email through the service role).
+- Cross-links: `/thanks` → "View all your orders", buy-modal and `/learn` gate → "View your orders".
+- Verified end-to-end on the live DB: checkout → paid order row → orders API → `/orders` renders 200. (Test rows cleaned up.)
+
+---
+
+## Day 5 addendum — Buyer accounts (sign in + account dashboard)
+
+### Database (`supabase/migrations/20260909000040_buyer_accounts.sql`, applied via db push)
+- `learners.auth_user_id` (uuid → auth.users, unique when set) links buyer accounts to their learner row.
+- Trigger `link_learner_on_signup` on auth.users: every new account auto-creates/links its learner row by email — so past guest email-checkout purchases attach to the account automatically.
+- Backfill in the migration links any existing auth users.
+- Legacy `lesson_progress` repair: live table pre-dated the learner model (customer_id, no learner_id/course_id) — columns added, legacy rows migrated, constraints rebuilt. Lesson completion saves now match the app's writes.
+- Buyer RLS: signed-in users can read ONLY their own learners/orders/enrollments/lesson_progress rows (helper fns `own_learner_id()` / `owns_learner()` are security definer + stable, no recursion), insert/update own lesson_progress, and read published courses + modules/lessons only inside owned enrollments (course content never leaks to signed-in non-buyers).
+
+### UI
+- **Sign in / Create account** button in every storefront masthead (`AccountButton`) → `/auth/buyer?next=<current page>`; signed-in state shows avatar + menu (My learning / Sign out).
+- **`/auth/buyer`** — one-page sign-in + create-account (Supabase auth, auto-confirm session). `?next=` returns the buyer where they came from; `?email=` prefills (from /thanks).
+- **`/account`** — the buyer dashboard, server-rendered from the session: "Your courses" open cards + order history with status badges; guest visitors get the email-gate fallback with a sign-in banner.
+- **Buy modal** is account-aware: signed-in buyers skip the email step entirely ("Buying as you@x.com — it goes straight to your account") with a one-click checkout button.
+- **`/thanks`** prompts guest buyers to claim their account with the checkout email prefilled.
+- `/learn` gate and buy modal link to `/orders` for guests.
+
+### Verified end-to-end (live DB)
+account created → free checkout with that email → buyer signs in → RLS-scoped read returns exactly their 1 paid order; all routes 200; lint clean; build green.
