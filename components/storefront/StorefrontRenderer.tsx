@@ -53,7 +53,10 @@ export default function StorefrontRenderer({
   const year = new Date().getFullYear();
 
   return (
-    <div className={cn("bg-white text-zinc-900", className)}>
+    // @container: all responsive sizing below is driven by THIS element's width
+    // (container queries), so the same markup renders correctly full-page and
+    // inside the dashboard builder's narrow preview pane.
+    <div className={cn("@container bg-white text-zinc-900", className)}>
       {/* Masthead */}
       <header className="border-b border-zinc-100">
         <div className="mx-auto max-w-5xl px-6 py-5 flex items-center justify-between gap-4">
@@ -160,7 +163,7 @@ function SectionShell({
   label: string;
 }) {
   return (
-    <section aria-label={label} className={cn("px-6 py-16 sm:py-20", className)}>
+    <section aria-label={label} className={cn("px-6 py-10 @min-[480px]:py-16 @min-[768px]:py-20", className)}>
       <div className="mx-auto max-w-5xl">{children}</div>
     </section>
   );
@@ -226,7 +229,7 @@ function HeroView({
         </span>
       ) : null}
       {headline ? (
-        <h1 className="mt-4 text-4xl sm:text-5xl font-bold tracking-tight text-zinc-900 leading-tight">
+        <h1 className="mt-4 text-3xl @min-[480px]:text-4xl @min-[768px]:text-5xl font-bold tracking-tight text-zinc-900 leading-tight break-words">
           {headline}
         </h1>
       ) : null}
@@ -255,8 +258,8 @@ function HeroView({
 
   if (hero.align === "left" && hero.image_url) {
     return (
-      <section aria-label="Hero" className="px-6 py-16 sm:py-24 bg-gradient-to-b from-zinc-50 to-white">
-        <div className="mx-auto max-w-5xl grid items-center gap-10 lg:grid-cols-2">
+      <section aria-label="Hero" className="px-6 py-12 @min-[480px]:py-16 @min-[768px]:py-24 bg-gradient-to-b from-zinc-50 to-white">
+        <div className="mx-auto max-w-5xl grid items-center gap-10 @min-[560px]:grid-cols-2">
           <div className="flex flex-col items-start">{content}</div>
           <MediaImage url={hero.image_url} className="rounded-xl" />
         </div>
@@ -265,7 +268,7 @@ function HeroView({
   }
 
   return (
-    <section aria-label="Hero" className="px-6 py-16 sm:py-24 bg-gradient-to-b from-zinc-50 to-white">
+    <section aria-label="Hero" className="px-6 py-12 @min-[480px]:py-16 @min-[768px]:py-24 bg-gradient-to-b from-zinc-50 to-white">
       <div className="mx-auto max-w-3xl flex flex-col items-center text-center">
         {content}
         {hero.image_url ? <MediaImage url={hero.image_url} className="mt-10 rounded-xl" /> : null}
@@ -290,7 +293,7 @@ function AboutView({ section }: { section: StorefrontSections["about"] }) {
   const hasImage = Boolean(section.image_url);
   return (
     <SectionShell label={STOREFRONT_SECTION_LABELS.about}>
-      <div className={cn("grid gap-10 items-center", hasImage && "lg:grid-cols-2")}>
+      <div className={cn("grid gap-10 items-center", hasImage && "@min-[560px]:grid-cols-2")}>
         <div className={cn("flex flex-col", !hasImage && "mx-auto max-w-2xl text-center items-center")}>
           {section.heading ? (
             <h2 className="text-3xl font-semibold tracking-tight text-zinc-900">{section.heading}</h2>
@@ -299,7 +302,7 @@ function AboutView({ section }: { section: StorefrontSections["about"] }) {
             <p className="mt-4 text-lg text-zinc-500 whitespace-pre-line">{section.body}</p>
           ) : null}
         </div>
-        {hasImage ? <MediaImage url={section.image_url} className="rounded-xl order-first lg:order-none" /> : null}
+        {hasImage ? <MediaImage url={section.image_url} className="rounded-xl order-first @min-[560px]:order-none" /> : null}
       </div>
     </SectionShell>
   );
@@ -331,7 +334,7 @@ function CollectionView({
         ) : null}
       </div>
       {items.length ? (
-        <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="mt-10 grid gap-5 @min-[420px]:grid-cols-2 @min-[680px]:grid-cols-3">
           {items.map((item) => (
             <CatalogCard key={item.id} item={item} kind={kind} creatorId={creatorId} />
           ))}
@@ -430,7 +433,7 @@ function TestimonialsView({ section }: { section: StorefrontSections["testimonia
       {section.heading ? (
         <h2 className="text-3xl font-semibold tracking-tight text-zinc-900 text-center">{section.heading}</h2>
       ) : null}
-      <div className="mt-10 grid gap-5 md:grid-cols-2">
+      <div className="mt-10 grid gap-5 @min-[560px]:grid-cols-2">
         {section.items.map((item, i) => (
           <TestimonialCard key={i} item={item} />
         ))}

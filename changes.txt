@@ -740,3 +740,21 @@ a session-governed upsert against the production DB succeeds, count=1):
 - C) Duplicate handle surfaces a proper error (unique constraint) instead of
   pretending to save.
 Lint clean, production build green.
+
+## Day 6 addendum — Storefront builder: phone gate
+
+- The dashboard storefront builder (rail + editor + live preview, three panes) now
+  displays a friendly "open on a bigger screen" notice on phones; tablets and up
+  (>= 768px, Tailwind `md`) get the full builder. Pure CSS visibility toggle — no
+  JS measurement, no hydration risk, works SSR.
+- The public storefront page (/c/[handle]) is untouched — it stays fully
+  responsive for visitors on any device.
+
+## Day 6 addendum (2) — Storefront builder gate: tablets allowed, phones blocked
+
+- Tuned the breakpoint from md (768px) to a custom 744px (`min-[744px]:flex` /
+  `max-[743px]:flex`) so every tablet works — including iPad Mini portrait
+  (744px), which md would have wrongly blocked — while every phone (max ~480px
+  CSS width) still gets the "can't open on a phone" notice. View + edit both
+  work at tablet size, as requested.
+- Copy now explicitly says phones can't open the editor; tablets/desktops can.

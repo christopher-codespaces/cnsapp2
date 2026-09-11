@@ -32,7 +32,7 @@ export default function BrandKitPage() {
   // Production builds freeze NEXT_PUBLIC_* at build time; if this build was
   // made without them, every client write fails. Detect once, up front.
   const envOk = Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
-  const [envError, setEnvError] = useState(!envOk);
+  const envError = !envOk;
   const [brandName, setBrandName] = useState("");
   const [handle, setHandle] = useState("");
   const [toneOfVoice, setToneOfVoice] = useState("");

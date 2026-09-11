@@ -31,6 +31,7 @@ import {
   ExternalLink,
   Loader2,
   MonitorPlay,
+  MonitorSmartphone,
   Save,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -232,9 +233,13 @@ export default function StorefrontBuilderPage() {
   const liveUrl = creator.handle ? `/c/${creator.handle}` : null;
 
   return (
-    <div className="flex flex-col h-[calc(100vh-128px)] min-h-[560px]">
+    <>
+      {/* The builder canvas (rail + editor + live preview) needs desktop-class
+          width: phones get the friendly gate below, tablets (744px+, including
+          iPad Mini portrait) and up get the full view + edit experience. */}
+      <div className="hidden min-[744px]:flex flex-col h-[calc(100vh-128px)] min-h-[560px]">
       {/* Top bar */}
-      <div className="flex items-center justify-between gap-4 pb-4">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 pb-4">
         <div className="flex items-center gap-3 min-w-0">
           <h1 className="text-lg font-semibold tracking-tight text-zinc-900">Storefront</h1>
           <Badge variant={isPublished ? "default" : "secondary"} className="shrink-0">
@@ -277,11 +282,11 @@ export default function StorefrontBuilderPage() {
         </div>
       </div>
 
-      {/* Body */}
-      <div className="flex-1 min-h-0 flex flex-col lg:flex-row overflow-hidden rounded-xl border border-zinc-200 bg-white">
-        {/* Sections rail */}
-        <nav className="w-full lg:w-56 shrink-0 border-b lg:border-b-0 lg:border-r border-zinc-200 bg-zinc-50/60 overflow-y-auto py-2">
-          <p className="px-3 pb-1 pt-1 text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
+      {/* Body — three panes side-by-side from tablet (744px) up */}
+      <div className="flex-1 min-h-0 flex flex-col min-[744px]:flex-row overflow-hidden rounded-xl border border-zinc-200 bg-white">
+        {/* Sections rail — icon-only on tablet, labelled from xl up */}
+        <nav className="w-full min-[744px]:w-14 xl:w-56 shrink-0 border-b min-[744px]:border-b-0 min-[744px]:border-r border-zinc-200 bg-zinc-50/60 overflow-y-auto py-2">
+          <p className="px-3 pb-1 pt-1 text-[11px] font-semibold uppercase tracking-wider text-zinc-400 hidden xl:block">
             Sections
           </p>
           {STOREFRONT_SECTION_ORDER.map((key) => {
@@ -289,26 +294,27 @@ export default function StorefrontBuilderPage() {
             const section = sections[key];
             const active = activeKey === key;
             return (
-              <div key={key} className="flex items-center px-1.5">
+              <div key={key} className="flex items-center px-1.5 min-[744px]:justify-center xl:justify-start">
                 <button
                   type="button"
+                  title={STOREFRONT_SECTION_LABELS[key]}
                   onClick={() => setActiveKey(key)}
                   className={cn(
-                    "flex flex-1 items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-sm min-w-0",
+                    "flex flex-1 min-[744px]:flex-none xl:flex-1 items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-sm min-w-0",
                     active ? "bg-zinc-200/80 text-zinc-900 font-medium" : "text-zinc-600 hover:bg-zinc-100"
                   )}
                 >
                   <Icon className="h-4 w-4 shrink-0 text-zinc-400" />
-                  <span className="truncate">{STOREFRONT_SECTION_LABELS[key]}</span>
+                  <span className="truncate hidden xl:inline">{STOREFRONT_SECTION_LABELS[key]}</span>
                   {!section.enabled ? (
-                    <span className="ml-auto text-[10px] uppercase tracking-wide text-zinc-400 shrink-0">Off</span>
+                    <span className="ml-auto text-[10px] uppercase tracking-wide text-zinc-400 shrink-0 hidden xl:inline">Off</span>
                   ) : null}
                 </button>
                 <button
                   type="button"
                   aria-label={section.enabled ? `Hide ${STOREFRONT_SECTION_LABELS[key]}` : `Show ${STOREFRONT_SECTION_LABELS[key]}`}
                   onClick={() => updateSection(key, { ...section, enabled: !section.enabled })}
-                  className="p-1.5 rounded-md text-zinc-300 hover:text-zinc-500 hover:bg-zinc-100 shrink-0"
+                  className="p-1.5 rounded-md text-zinc-300 hover:text-zinc-500 hover:bg-zinc-100 shrink-0 hidden min-[744px]:hidden xl:block"
                 >
                   {section.enabled ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
                 </button>
@@ -317,8 +323,8 @@ export default function StorefrontBuilderPage() {
           })}
         </nav>
 
-        {/* Editor */}
-        <div className="w-full lg:w-[400px] shrink-0 overflow-y-auto border-b lg:border-b-0 lg:border-r border-zinc-200 p-5">
+        {/* Editor — 340px on tablet, 400px from xl up */}
+        <div className="w-full min-[744px]:w-[340px] xl:w-[400px] shrink-0 overflow-y-auto border-b min-[744px]:border-b-0 min-[744px]:border-r border-zinc-200 p-5">
           <div className="flex items-center justify-between gap-3 mb-5">
             <div>
               <h2 className="text-base font-semibold text-zinc-900">{STOREFRONT_SECTION_LABELS[activeKey]}</h2>
@@ -347,7 +353,7 @@ export default function StorefrontBuilderPage() {
               )}
             </p>
           </div>
-          <div className="m-6 mx-auto max-w-4xl overflow-hidden rounded-lg border border-zinc-200 shadow-sm">
+          <div className="m-3 xl:m-6 mx-auto max-w-4xl overflow-hidden rounded-lg border border-zinc-200 shadow-sm">
             <StorefrontRenderer
               sections={sections}
               brandName={creator.brand_name}
@@ -359,6 +365,28 @@ export default function StorefrontBuilderPage() {
             />
           </div>
         </div>
+      </div>
+      </div>
+
+      <MobileGateNotice />
+    </>
+  );
+}
+
+/** Phones: the three-pane builder can't fit — point creators to a bigger screen. */
+function MobileGateNotice() {
+  return (
+    <div className="hidden max-[743px]:flex min-h-[60vh] items-center justify-center px-6 py-16">
+      <div className="w-full max-w-sm rounded-2xl border border-zinc-200 bg-white p-8 text-center shadow-sm">
+        <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-zinc-900 text-white">
+          <MonitorSmartphone className="h-5 w-5" />
+        </span>
+        <p className="mt-4 text-base font-semibold text-zinc-900">This editor can’t open on a phone</p>
+        <p className="mt-2 text-sm leading-relaxed text-zinc-500">
+          The storefront builder needs more width than a phone screen can offer.
+          Open it on a tablet or desktop and you can view and edit everything,
+          including the live preview.
+        </p>
       </div>
     </div>
   );

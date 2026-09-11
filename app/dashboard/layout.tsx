@@ -105,28 +105,29 @@ export default function DashboardLayout({
 
   return (
     <div className="min-h-screen flex bg-zinc-50">
-      {/* Sidebar */}
-      <aside className="hidden md:flex w-60 shrink-0 flex-col border-r border-zinc-200 bg-white">
-        <div className="flex items-center gap-2.5 px-4 py-4">
+      {/* Sidebar — icon-only on tablets, full width from xl up */}
+      <aside className="hidden md:flex md:w-[68px] xl:w-60 shrink-0 flex-col border-r border-zinc-200 bg-white">
+        <div className="flex items-center gap-2.5 px-4 py-4 md:justify-center xl:justify-start">
           <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-brand text-sm font-bold text-white shadow-sm">
             C
           </span>
-          <span className="text-sm font-semibold text-zinc-900 leading-tight">
+          <span className="hidden xl:block text-sm font-semibold text-zinc-900 leading-tight">
             CNS Creator OS
           </span>
         </div>
-        <p className="px-5 pb-1.5 pt-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
+        <p className="hidden xl:block px-5 pb-1.5 pt-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
           Workspace
         </p>
-        <nav className="flex-1 space-y-0.5 px-2 py-1.5">
+        <nav className="flex-1 space-y-0.5 px-2 py-1.5 md:px-1.5 xl:px-2">
           {NAV_ITEMS.map((item) => {
             const active = item.exact ? pathname === item.href : pathname.startsWith(item.href);
             return (
               <Link
                 key={item.href}
                 href={item.href}
+                title={item.label}
                 className={cn(
-                  "group flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm transition-colors",
+                  "group flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm transition-colors md:justify-center xl:justify-start",
                   active
                     ? "bg-zinc-100 font-medium text-zinc-900"
                     : "text-zinc-500 hover:bg-zinc-50 hover:text-zinc-900"
@@ -138,21 +139,21 @@ export default function DashboardLayout({
                     active ? "text-orange-500" : "text-zinc-400 group-hover:text-zinc-600"
                   )}
                 />
-                {item.label}
+                <span className="hidden xl:inline">{item.label}</span>
               </Link>
             );
           })}
         </nav>
-        <div className="border-t border-zinc-200 p-3">
-          <div className="flex items-center gap-2 px-1 pb-2 min-w-0">
+        <div className="border-t border-zinc-200 p-3 md:px-2 xl:px-3">
+          <div className="hidden xl:flex items-center gap-2 px-1 pb-2 min-w-0">
             <span className="h-6 w-6 rounded-full bg-zinc-200 flex items-center justify-center text-[10px] font-semibold text-zinc-600 uppercase shrink-0">
               {(session.user?.email || "?")[0]}
             </span>
             <span className="text-xs text-zinc-500 truncate">{session.user?.email}</span>
           </div>
-          <Button variant="outline" size="sm" className="w-full text-zinc-600" onClick={signOut}>
-            <LogOut className="h-3.5 w-3.5" />
-            Sign out
+          <Button variant="outline" size="sm" className="w-full text-zinc-600 md:justify-center xl:justify-start md:px-0 xl:px-3" onClick={signOut} title="Sign out">
+            <LogOut className="h-3.5 w-3.5 shrink-0" />
+            <span className="hidden xl:inline">Sign out</span>
           </Button>
         </div>
       </aside>
