@@ -709,3 +709,34 @@ User request — Paystack for the creator market (cards, bank transfer, USSD, mo
 
 ### Verified end-to-end (live DB)
 account created → free checkout with that email → buyer signs in → RLS-scoped read returns exactly their 1 paid order; all routes 200; lint clean; build green.
+
+## Day 6 addendum — Brand-kit "won't save in production" fixed
+
+### Root cause
+The brand-kit page had a silent dead-end, not a database problem (verified live:
+a session-governed upsert against the production DB succeeds, count=1):
+- When the initial `creators` load failed (expired token, network hiccup) or
+  returned no row, `initial` stayed "" → `dirty` was permanently false → the
+  Save button was permanently disabled with zero feedback. Every later click
+  did nothing, which reads exactly as "it doesn't save in production".
+- Load errors were never rendered (the error chip only showed after a failed
+  save), so the trigger was invisible.
+
+### Fixes (app/dashboard/brand-kit/page.tsx)
+- Save is no longer gated on `dirty` — always clickable; upsert stays idempotent.
+- `initial` uses a tri-state: null = row never loaded → edits still count as
+  dirty and Save creates the creator row (first save = create).
+- Load failures now surface immediately in the header (error chip + Retry save).
+- Save shows the precise failure: session errors, handle collisions
+  ("duplicate key ... creators_handle_key"), RLS denials — no more silent no-ops.
+- Env guard: if `NEXT_PUBLIC_SUPABASE_URL` / `..._ANON_KEY` are missing from the
+  build, the page renders a clear "not configured — rebuild" panel instead of
+  failing cryptically (production builds freeze NEXT_PUBLIC_* at build time;
+  this project's env file had been flapping between .env and .env.local).
+
+### Verified against the live database
+- A) First save on a brand-new account creates the creator row (count=1).
+- B) Update of the existing row succeeds (count=1).
+- C) Duplicate handle surfaces a proper error (unique constraint) instead of
+  pretending to save.
+Lint clean, production build green.

@@ -29,6 +29,10 @@ const FONT_PRESETS = [
 ] as const;
 
 export default function BrandKitPage() {
+  // Production builds freeze NEXT_PUBLIC_* at build time; if this build was
+  // made without them, every client write fails. Detect once, up front.
+  const envOk = Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+  const [envError, setEnvError] = useState(!envOk);
   const [brandName, setBrandName] = useState("");
   const [handle, setHandle] = useState("");
   const [toneOfVoice, setToneOfVoice] = useState("");
@@ -37,11 +41,12 @@ export default function BrandKitPage() {
   const [logoUrl, setLogoUrl] = useState("");
   const [colors, setColors] = useState<Record<string, string>>({});
   const [fonts, setFonts] = useState<Record<string, string>>({});
-  const [initial, setInitial] = useState("");
+  const [initial, setInitial] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveState, setSaveState] = useState<"idle" | "saved" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
   const snapshotRef = useRef("");
 
   useEffect(() => {
@@ -53,6 +58,7 @@ export default function BrandKitPage() {
         const { data, error } = await supabase.from("creators").select("*").maybeSingle();
         if (error) throw error;
         if (data && !cancelled) {
+          setLoadFailed(false);
           const row = data as unknown as {
             brand_name: string;
             handle: string;
@@ -82,9 +88,18 @@ export default function BrandKitPage() {
             fonts: row.fonts ?? {},
           });
           setInitial(snapshotRef.current);
+        } else if (!cancelled) {
+          // No creator row yet (brand-new account, or RLS hides it) — the save
+          // below creates it, so the editor must start out fully writable.
+          setInitial("");
         }
       } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : "Failed to load brand kit");
+        if (!cancelled) {
+          setLoadFailed(true);
+          setError(e instanceof Error ? e.message : "Failed to load brand kit");
+          // Still allow editing: a retry via Save is better than a dead page.
+          setInitial("");
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -96,7 +111,9 @@ export default function BrandKitPage() {
 
   const dirty = useMemo(() => {
     const snap = JSON.stringify({ brandName, handle, toneOfVoice, targetAudience, preferredCta, logoUrl, colors, fonts });
-    return initial !== "" && snap !== initial;
+    // initial === null means the row never loaded — treat edits as dirty so the
+    // creator can always save (first save creates the row).
+    return initial !== null && snap !== initial;
   }, [brandName, handle, toneOfVoice, targetAudience, preferredCta, logoUrl, colors, fonts, initial]);
 
   async function save() {
@@ -104,11 +121,18 @@ export default function BrandKitPage() {
     setError(null);
     setSaveState("idle");
     try {
+      if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+        throw new Error(
+          "Missing Supabase config — rebuild with NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY set (production builds freeze these at build time)."
+        );
+      }
       const { createClient } = await import("@/lib/supabase/client");
       const supabase = createClient();
       const {
         data: { user },
+        error: authError,
       } = await supabase.auth.getUser();
+      if (authError) throw new Error(`Session error: ${authError.message} — try signing in again`);
       if (!user) throw new Error("Not signed in");
 
       const cleanHandle = handle
@@ -132,6 +156,7 @@ export default function BrandKitPage() {
         { onConflict: "user_id" }
       );
       if (error) throw error;
+      setLoadFailed(false);
       const snap = JSON.stringify({ brandName, handle: cleanHandle, toneOfVoice, targetAudience, preferredCta, logoUrl, colors, fonts });
       setInitial(snap);
       setHandle(cleanHandle);
@@ -162,6 +187,17 @@ export default function BrandKitPage() {
     );
   }
 
+  if (envError) {
+    return (
+      <div className="mx-auto max-w-xl rounded-2xl border border-red-200 bg-red-50 p-6 text-center">
+        <p className="text-sm font-medium text-red-700">Brand kit is unavailable: Supabase is not configured in this build.</p>
+        <p className="mt-2 text-xs text-red-500">
+          Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY, then rebuild — production builds freeze env vars at build time.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto max-w-6xl">
       {/* Header */}
@@ -176,8 +212,14 @@ export default function BrandKitPage() {
               <Check className="h-3.5 w-3.5" /> Saved
             </span>
           ) : null}
-          {saveState === "error" && error ? <span className="text-xs text-red-600">{error}</span> : null}
-          <Button onClick={save} disabled={saving || !dirty} size="sm">
+          {error ? <span className="max-w-[320px] truncate text-xs text-red-600" title={error}>{error}</span> : null}
+          {loadFailed ? (
+            <Button onClick={save} disabled={saving} size="sm" variant="outline">
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              Retry save
+            </Button>
+          ) : null}
+          <Button onClick={save} disabled={saving} size="sm">
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
             Save
           </Button>

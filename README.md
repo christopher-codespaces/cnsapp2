@@ -39,6 +39,20 @@ files (they're kept in `supabase/migrations_legacy/` for reference). Either:
 
 Then re-save your Brand Kit once — the creator row only inserts once RLS is repaired.
 
+### Brand kit won't save?
+
+The save path (client upsert on `creators` with `onConflict: user_id`) is verified working
+against the live database. If it ever looks dead again:
+
+1. **Save button does nothing** — fixed on 2026-09-11 (the button used to stay disabled
+   when the initial load failed; it is now always clickable and surfaces the real error).
+2. **"Missing Supabase config"** panel — production builds freeze `NEXT_PUBLIC_*` at build
+   time. Make sure `.env` exists with both keys, then rebuild (`npm run build`).
+3. **"duplicate key ... creators_handle_key"** — another creator already uses that handle;
+   pick a different one (the error is now shown in the header instead of swallowed).
+4. **"Session error ..."** — sign out and back in; expired refresh tokens fail silently on
+   tab-restore.
+
 Historical per-phase migrations (for fresh projects needing the full trail):
 # Phase 2 — public creator profiles view, landing-page slug uniqueness, public subscribe
 supabase db push -f supabase/migrations/20260904000000_phase2_public_profiles.sql
